@@ -70,6 +70,7 @@ NS_INLINE UIImage *SDScaledImageForPath(NSString *path, NSObject *imageOrData)
         return nil;
     }
 
+#if TARGET_OS_IPHONE
     if ([[UIScreen mainScreen] respondsToSelector:@selector(scale)])
     {
         CGFloat scale = 1.0;
@@ -87,6 +88,9 @@ NS_INLINE UIImage *SDScaledImageForPath(NSString *path, NSObject *imageOrData)
         SDWISafeRelease(image)
         image = scaledImage;
     }
+#endif
 
     return SDWIReturnAutoreleased(image);
+
+    
 }

@@ -96,6 +96,8 @@ static SDWebImageDecoder *sharedInstance;
 
 + (UIImage *)decodedImageWithImage:(UIImage *)image
 {
+#if TARGET_OS_IPHONE
+    
     CGImageAlphaInfo alphaInfo = CGImageGetAlphaInfo(image.CGImage);
     BOOL imageHasAlphaInfo = (alphaInfo != kCGImageAlphaNone &&
                               alphaInfo != kCGImageAlphaNoneSkipFirst &&
@@ -108,6 +110,13 @@ static SDWebImageDecoder *sharedInstance;
     UIGraphicsEndImageContext();
 
     return decompressedImage;
+    
+#else
+    
+    return image;
+    
+#endif
+    
 }
 
 @end

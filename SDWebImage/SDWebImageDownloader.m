@@ -208,7 +208,11 @@ NSString *const SDWebImageDownloadStopNotification = @"SDWebImageDownloadStopNot
 
             if (partialImageRef)
             {
+#if TARGET_OS_IPHONE
                 UIImage *image = SDScaledImageForPath(url.absoluteString, [UIImage imageWithCGImage:partialImageRef]);
+#else
+                UIImage *image = SDScaledImageForPath(url.absoluteString, [[UIImage alloc] initWithCGImage:partialImageRef size:NSZeroSize]);
+#endif
                 [[SDWebImageDecoder sharedImageDecoder] decodeImage:image
                                                        withDelegate:self
                                                            userInfo:[NSDictionary dictionaryWithObject:@"partial" forKey:@"type"]];

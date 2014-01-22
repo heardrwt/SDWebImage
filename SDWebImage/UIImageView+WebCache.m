@@ -73,13 +73,17 @@
 - (void)webImageManager:(SDWebImageManager *)imageManager didProgressWithPartialImage:(UIImage *)image forURL:(NSURL *)url
 {
     self.image = image;
+#if TARGET_OS_IPHONE
     [self setNeedsLayout];
+#endif
 }
 
 - (void)webImageManager:(SDWebImageManager *)imageManager didFinishWithImage:(UIImage *)image
 {
     self.image = image;
+#if TARGET_OS_IPHONE
     [self setNeedsLayout];
+#endif
 }
 
 @end

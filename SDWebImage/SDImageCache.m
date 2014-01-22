@@ -28,11 +28,11 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
         // Init the memory cache
         memCache = [[NSCache alloc] init];
         memCache.name = @"ImageCache";
-
+        
         // Init the disk cache
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
         diskCachePath = SDWIReturnRetained([[paths objectAtIndex:0] stringByAppendingPathComponent:@"ImageCache"]);
-
+        
         if (![[NSFileManager defaultManager] fileExistsAtPath:diskCachePath])
         {
             [[NSFileManager defaultManager] createDirectoryAtPath:diskCachePath
@@ -40,25 +40,25 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
                                                        attributes:nil
                                                             error:NULL];
         }
-
+        
         // Init the operation queue
         cacheInQueue = [[NSOperationQueue alloc] init];
         cacheInQueue.maxConcurrentOperationCount = 1;
         cacheOutQueue = [[NSOperationQueue alloc] init];
         cacheOutQueue.maxConcurrentOperationCount = 1;
-
+        
 #if TARGET_OS_IPHONE
         // Subscribe to app events
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(clearMemory)
                                                      name:UIApplicationDidReceiveMemoryWarningNotification
                                                    object:nil];
-
+        
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(cleanDisk)
                                                      name:UIApplicationWillTerminateNotification
                                                    object:nil];
-
+        
 #if __IPHONE_OS_VERSION_MIN_REQUIRED >= __IPHONE_4_0
         UIDevice *device = [UIDevice currentDevice];
         if ([device respondsToSelector:@selector(isMultitaskingSupported)] && device.multitaskingSupported)
@@ -72,7 +72,7 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
 #endif
 #endif
     }
-
+    
     return self;
 }
 
@@ -81,9 +81,9 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
     SDWISafeRelease(memCache);
     SDWISafeRelease(diskCachePath);
     SDWISafeRelease(cacheInQueue);
-
+    
     [[NSNotificationCenter defaultCenter] removeObserver:self];
-
+    
     SDWISuperDealoc;
 }
 
@@ -95,7 +95,7 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
     {
         instance = [[SDImageCache alloc] init];
     }
-
+    
     return instance;
 }
 
@@ -113,7 +113,7 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
     CC_MD5(str, (CC_LONG)strlen(str), r);
     NSString *filename = [NSString stringWithFormat:@"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                           r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15]];
-
+    
     return [diskCachePath stringByAppendingPathComponent:filename];
 }
 
@@ -121,10 +121,10 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
 {
     // Can't use defaultManager another thread
     NSFileManager *fileManager = [[NSFileManager alloc] init];
-
+    
     NSString *key = [keyAndData objectAtIndex:0];
     NSData *data = [keyAndData count] > 1 ? [keyAndData objectAtIndex:1] : nil;
-
+    
     if (data)
     {
         [fileManager createFileAtPath:[self cachePathForKey:key] contents:data attributes:nil];
@@ -146,7 +146,7 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
             SDWIRelease(image);
         }
     }
-
+    
     SDWIRelease(fileManager);
 }
 
@@ -156,11 +156,14 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
     id <SDImageCacheDelegate> delegate = [arguments objectForKey:@"delegate"];
     NSDictionary *info = [arguments objectForKey:@"userInfo"];
     UIImage *image = [arguments objectForKey:@"image"];
-
+    
     if (image)
-    {  
+    {
+#if TARGET_OS_IPHONE
         [memCache setObject:image forKey:key cost:image.size.height * image.size.width * image.scale];
-
+#else
+        [memCache setObject:image forKey:key cost:image.size.height * image.size.width];
+#endif
         if ([delegate respondsToSelector:@selector(imageCache:didFindImage:forKey:userInfo:)])
         {
             [delegate imageCache:self didFindImage:image forKey:key userInfo:info];
@@ -179,9 +182,9 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
 {
     NSString *key = [arguments objectForKey:@"key"];
     NSMutableDictionary *mutableArguments = SDWIReturnAutoreleased([arguments mutableCopy]);
-
+    
     UIImage *image = SDScaledImageForPath(key, [NSData dataWithContentsOfFile:[self cachePathForKey:key]]);
-
+    
     if (image)
     {
         UIImage *decodedImage = [UIImage decodedImageWithImage:image];
@@ -189,10 +192,10 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
         {
             image = decodedImage;
         }
-
+        
         [mutableArguments setObject:image forKey:@"image"];
     }
-
+    
     [self performSelectorOnMainThread:@selector(notifyDelegate:) withObject:mutableArguments waitUntilDone:NO];
 }
 
@@ -205,8 +208,12 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
         return;
     }
     
+#if TARGET_OS_IPHONE
     [memCache setObject:image forKey:key cost:image.size.height * image.size.width * image.scale];
-
+#else
+    [memCache setObject:image forKey:key cost:image.size.height * image.size.width];
+#endif
+    
     if (toDisk)
     {
         NSArray *keyWithData;
@@ -218,7 +225,7 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
         {
             keyWithData = [NSArray arrayWithObjects:key, nil];
         }
-
+        
         NSInvocationOperation *operation = SDWIReturnAutoreleased([[NSInvocationOperation alloc] initWithTarget:self
                                                                                                        selector:@selector(storeKeyWithDataToDisk:)
                                                                                                          object:keyWithData]);
@@ -248,18 +255,22 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
     {
         return nil;
     }
-
+    
     UIImage *image = [memCache objectForKey:key];
-
+    
     if (!image && fromDisk)
     {
         image = SDScaledImageForPath(key, [NSData dataWithContentsOfFile:[self cachePathForKey:key]]);
         if (image)
         {
+#if TARGET_OS_IPHONE
             [memCache setObject:image forKey:key cost:image.size.height * image.size.width * image.scale];
+#else
+            [memCache setObject:image forKey:key cost:image.size.height * image.size.width];
+#endif
         }
     }
-
+    
     return image;
 }
 
@@ -269,7 +280,7 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
     {
         return;
     }
-
+    
     if (!key)
     {
         if ([delegate respondsToSelector:@selector(imageCache:didNotFindImageForKey:userInfo:)])
@@ -278,7 +289,7 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
         }
         return;
     }
-
+    
     // First check the in-memory cache...
     UIImage *image = [memCache objectForKey:key];
     if (image)
@@ -290,7 +301,7 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
         }
         return;
     }
-
+    
     NSMutableDictionary *arguments = [NSMutableDictionary dictionaryWithCapacity:3];
     [arguments setObject:key forKey:@"key"];
     [arguments setObject:delegate forKey:@"delegate"];
@@ -315,9 +326,9 @@ static NSInteger cacheMaxCacheAge = 60*60*24*7; // 1 week
     {
         return;
     }
-
+    
     [memCache removeObjectForKey:key];
-
+    
     if (fromDisk)
     {
         [[NSFileManager defaultManager] removeItemAtPath:[self cachePathForKey:key] error:nil];
